@@ -1,5 +1,5 @@
 # SOME/IP and Service-Discovery dissector
-SOME/IP and Service-Discovery dissector / plugin for Wireshark. This plugin, the [oabrDongle](https://www.atmes.de/oabrdongle) and Wireshark is a toolchain for analyzing Automotive-Ethernet (BroadR-Reach™ / OABR).
+SOME/IP and Service-Discovery dissector / plugin for Wireshark. This plugin, the [oabrDongle](https://www.atmes.de/produkte/oabrdongle) and Wireshark is a toolchain for analyzing Automotive-Ethernet (BroadR-Reach™ / OABR).
 The [dbImporter / mgsInterpreter](https://www.atmes.de/en/produkte/dbimporter.html) can extend this plugin. So you can see signals, data values, strings and structures of a SOME/IP message.
 
 ## Installation
