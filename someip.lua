@@ -1,6 +1,9 @@
 -----------------------------------
 -- SOME/IP Dissector
--- Autor: ATMES GmbH
+-- Copyright 2018 ATMES GmbH
+
+-- Version 1.1		- Add reserved to Subscribe Eventgroup
+
 -- Version 1.0
 -----------------------------------
 
@@ -46,8 +49,8 @@ local E_sdOptTypes = {
     [6]     = "IPv6 ENDPOINT", 
     [20]    = "IPv4 MULTICAST", 
     [22]    = "IPV6 MULTICAST", 
-    [36]    = "IPv4 SD ENDPOINT",
-    [38]    = "IPv6 SD ENDPOINT" 
+    [36]    = "IPv4 SD_ENDPOINT",
+    [38]    = "IPv6 SD_ENDPOINT" 
 }
 
 local E_sdL4 = {
@@ -84,6 +87,7 @@ local f_sdInstId    = ProtoField.uint16("sd.sdInstId","Instance ID",base.HEX)
 local f_sdMajor     = ProtoField.uint8("sd.sdMajor","Major Version",base.HEX)
 local f_sdTtl       = ProtoField.uint24("sd.sdTtl","TTL",base.HEX)
 local f_sdMinor     = ProtoField.uint32("sd.sdMinor","Minor Version",base.HEX)
+local f_sdReserved2 = ProtoField.uint16("sd.sdReserved2","Reserved",base.HEX)
 local f_sdEventgroup= ProtoField.uint16("sd.sdEventgroup","Eventgroup ID",base.HEX)
 local f_sdOptionLen = ProtoField.uint32("sd.sdOptionLen","Length of Option array",base.HEX)
 
@@ -92,7 +96,7 @@ local f_sdPort      = ProtoField.uint16("sd.sdPort","Port",base.HEX)
 local f_sdLen       = ProtoField.uint16("sd.sdLen","Length",base.HEX)
 local f_sdOptType   = ProtoField.uint8("sd.sdOptType","Type",base.HEX)
 local f_sdL4        = ProtoField.uint8("sd.sdL4","L4-Protocol",base.HEX) 
-pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdEventgroup, f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4}
+pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdReserved2, f_sdEventgroup, f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4}
 
 
 local function getSd(buf, pkt, root)
@@ -150,10 +154,11 @@ local function getSd(buf, pkt, root)
 			sd:add(f_sdMajor, buf(dataPos + 8, 1))
 			ttl = sd:add(f_sdTtl, buf(dataPos + 9, 3))
 			ttl:append_text(" (" .. buf(dataPos + 9, 3):uint() .." seconds)")
+			sd:add(f_sdReserved2, buf(dataPos + 12, 2))
 			if (buf(dataPos, 1):uint() > 0x5) then
-				sd:add(f_sdEventgroup, buf(dataPos + 12, 2))
+				sd:add(f_sdEventgroup, buf(dataPos + 14, 2))
 			else
-				sd:add(f_sdMinor, buf(dataPos + 12, 4))
+				sd:add(f_sdMinor, buf(dataPos + 14, 4))
 			end
 		
 		else
@@ -288,7 +293,7 @@ function pSomeIP.init()
     local udp_table = DissectorTable.get("udp.port")
     local tcp_table = DissectorTable.get("tcp.port")
 
-    for i,port in ipairs{30490,30491,30500,30501,30502,30503,30504,30505} do
+    for i,port in ipairs{30490,30491,30492,30500,30501,30502,30503,30504,30505,50025,50015} do
         udp_table:add(port,pSomeIP)
         tcp_table:add(port,pSomeIP)
     end
