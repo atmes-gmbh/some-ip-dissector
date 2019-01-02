@@ -9,53 +9,53 @@
 
 
 local E_msgTypes = {
-    [0]     = "REQUEST",               
-    [1]     = "REQUEST_NO_RETURN",    
-    [2]     = "NOTIFICATION",         
-    [64]    = "REQUEST_ACK",          
-    [65]    = "REQUEST_NO_RETURN_ACK", 
-    [66]    = "NOTIFICATION_ACK",   
-    [128]   = "RESPONSE",        
-    [129]   = "ERROR",   
-    [192]   = "RESPONSE_ACK",  
-    [193]   = "ERROR_ACK"  
+	[0]     = "REQUEST",
+	[1]     = "REQUEST_NO_RETURN",
+	[2]     = "NOTIFICATION",
+	[64]    = "REQUEST_ACK",
+	[65]    = "REQUEST_NO_RETURN_ACK",
+	[66]    = "NOTIFICATION_ACK",
+	[128]   = "RESPONSE",
+	[129]   = "ERROR",
+	[192]   = "RESPONSE_ACK",
+	[193]   = "ERROR_ACK"
 }
 
 local E_retCodes = {
-    [0]     = "OK",
-    [1]     = "NOT_OK",
-    [2]     = "UNKNOWN_SERVICE",
-    [3]     = "UNKNOWN_METHOD",
-    [4]     = "NOT_READY",
-    [5]     = "NOT_REACHABLE",
-    [6]     = "TIMEOUT",
-    [7]     = "WRONG_PROTOCOL_VERSION",
-    [8]     = "WRONG_INTERFACE_VERSION",
-    [9]     = "MALFORMED_MESSAGE",
-    [10]    = "WRONG_MESSAGE_TYPE"
+	[0]     = "OK",
+	[1]     = "NOT_OK",
+	[2]     = "UNKNOWN_SERVICE",
+	[3]     = "UNKNOWN_METHOD",
+	[4]     = "NOT_READY",
+	[5]     = "NOT_REACHABLE",
+	[6]     = "TIMEOUT",
+	[7]     = "WRONG_PROTOCOL_VERSION",
+	[8]     = "WRONG_INTERFACE_VERSION",
+	[9]     = "MALFORMED_MESSAGE",
+	[10]    = "WRONG_MESSAGE_TYPE"
 }
 
 local E_sdTypes = {
-    [0] 	= "FIND SERVICE",
-    [1] 	= "OFFER SERVICE",
-    [6] 	= "SUBSCRIBE EVENTGROUP", 
-    [7]	 	= "SUBSCRIBE EVENTGROUP ACK"
+	[0] 	= "FIND SERVICE",
+	[1] 	= "OFFER SERVICE",
+	[6] 	= "SUBSCRIBE EVENTGROUP",
+	[7]	 	= "SUBSCRIBE EVENTGROUP ACK"
 }
 
 local E_sdOptTypes = {
-    [1]     = "CONFIGURATION", 
-    [2]     = "LOAD BALANCING", 
-    [4]     = "IPv4 ENDPOINT",
-    [6]     = "IPv6 ENDPOINT", 
-    [20]    = "IPv4 MULTICAST", 
-    [22]    = "IPV6 MULTICAST", 
-    [36]    = "IPv4 SD_ENDPOINT",
-    [38]    = "IPv6 SD_ENDPOINT" 
+	[1]     = "CONFIGURATION",
+	[2]     = "LOAD BALANCING",
+	[4]     = "IPv4 ENDPOINT",
+[6]     = "IPv6 ENDPOINT",
+	[20]    = "IPv4 MULTICAST",
+	[22]    = "IPV6 MULTICAST",
+	[36]    = "IPv4 SD_ENDPOINT",
+	[38]    = "IPv6 SD_ENDPOINT"
 }
 
 local E_sdL4 = {
-    [6]     = "TCP",
-    [17]    = "UDP"
+	[6]     = "TCP",
+	[17]    = "UDP"
 }
 
 pSomeIP = Proto("someip","SOME/IP")
