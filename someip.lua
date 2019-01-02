@@ -58,7 +58,7 @@ local E_sdL4 = {
 	[17]    = "UDP"
 }
 
-pSomeIP = Proto("someip","SOME/IP")
+pSomeIP = Proto("someip_","SOME/IP")
 local f_serviceId	= ProtoField.uint16("someip.serviceId","Service ID",base.HEX)
 local f_methodId	= ProtoField.uint16("someip.methodId","Method ID",base.HEX)
 local f_length      = ProtoField.uint32("someip.length","Length",base.HEX)
@@ -76,7 +76,7 @@ local f_sdReserved  = ProtoField.uint24("sd.sdReserved","Reserved",base.HEX)
 local f_sdFlags     = ProtoField.uint8("sd.sdFlags","Flags",base.HEX)
 pSdHeader.fields = {f_sdFlags, f_sdReserved, f_sdHeaderLen}
 
-local pSd = Proto("sd","sd")
+local pSd = Proto("sd_","sd")
 local f_sdType      = ProtoField.uint8("sd.sdType","Type",base.HEX)
 local f_sdIndex1    = ProtoField.uint8("sd.sdIndex1","Index 1st Options",base.HEX)
 local f_sdIndex2    = ProtoField.uint8("sd.sdIndex2","Index 2nd Options",base.HEX)
