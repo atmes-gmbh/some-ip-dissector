@@ -2,6 +2,8 @@
 -- SOME/IP Dissector
 -- Copyright 2018 ATMES GmbH
 
+-- Version 1.2      - Add decoding of a few Service Discovery options
+
 -- Version 1.1		- Add reserved to Subscribe Eventgroup
 
 -- Version 1.0
@@ -9,16 +11,16 @@
 
 
 local E_msgTypes = {
-    [0]     = "REQUEST",               
-    [1]     = "REQUEST_NO_RETURN",    
-    [2]     = "NOTIFICATION",         
-    [64]    = "REQUEST_ACK",          
-    [65]    = "REQUEST_NO_RETURN_ACK", 
-    [66]    = "NOTIFICATION_ACK",   
-    [128]   = "RESPONSE",        
-    [129]   = "ERROR",   
-    [192]   = "RESPONSE_ACK",  
-    [193]   = "ERROR_ACK"  
+    [0]     = "REQUEST",
+    [1]     = "REQUEST_NO_RETURN",
+    [2]     = "NOTIFICATION",
+    [64]    = "REQUEST_ACK",
+    [65]    = "REQUEST_NO_RETURN_ACK",
+    [66]    = "NOTIFICATION_ACK",
+    [128]   = "RESPONSE",
+    [129]   = "ERROR",
+    [192]   = "RESPONSE_ACK",
+    [193]   = "ERROR_ACK"
 }
 
 local E_retCodes = {
@@ -38,19 +40,19 @@ local E_retCodes = {
 local E_sdTypes = {
     [0] 	= "FIND SERVICE",
     [1] 	= "OFFER SERVICE",
-    [6] 	= "SUBSCRIBE EVENTGROUP", 
+    [6] 	= "SUBSCRIBE EVENTGROUP",
     [7]	 	= "SUBSCRIBE EVENTGROUP ACK"
 }
 
 local E_sdOptTypes = {
-    [1]     = "CONFIGURATION", 
-    [2]     = "LOAD BALANCING", 
+    [1]     = "CONFIGURATION",
+    [2]     = "LOAD BALANCING",
     [4]     = "IPv4 ENDPOINT",
-    [6]     = "IPv6 ENDPOINT", 
-    [20]    = "IPv4 MULTICAST", 
-    [22]    = "IPV6 MULTICAST", 
+	[6]     = "IPv6 ENDPOINT",
+    [20]    = "IPv4 MULTICAST",
+    [22]    = "IPV6 MULTICAST",
     [36]    = "IPv4 SD_ENDPOINT",
-    [38]    = "IPv6 SD_ENDPOINT" 
+    [38]    = "IPv6 SD_ENDPOINT"
 }
 
 local E_sdL4 = {
@@ -58,7 +60,7 @@ local E_sdL4 = {
     [17]    = "UDP"
 }
 
-pSomeIP = Proto("someip","SOME/IP")
+pSomeIP = Proto("someip_","SOME/IP")
 local f_serviceId	= ProtoField.uint16("someip.serviceId","Service ID",base.HEX)
 local f_methodId	= ProtoField.uint16("someip.methodId","Method ID",base.HEX)
 local f_length      = ProtoField.uint32("someip.length","Length",base.HEX)
@@ -76,7 +78,7 @@ local f_sdReserved  = ProtoField.uint24("sd.sdReserved","Reserved",base.HEX)
 local f_sdFlags     = ProtoField.uint8("sd.sdFlags","Flags",base.HEX)
 pSdHeader.fields = {f_sdFlags, f_sdReserved, f_sdHeaderLen}
 
-local pSd = Proto("sd","sd")
+local pSd = Proto("sd_","sd")
 local f_sdType      = ProtoField.uint8("sd.sdType","Type",base.HEX)
 local f_sdIndex1    = ProtoField.uint8("sd.sdIndex1","Index 1st Options",base.HEX)
 local f_sdIndex2    = ProtoField.uint8("sd.sdIndex2","Index 2nd Options",base.HEX)
@@ -89,22 +91,29 @@ local f_sdTtl       = ProtoField.uint24("sd.sdTtl","TTL",base.HEX)
 local f_sdMinor     = ProtoField.uint32("sd.sdMinor","Minor Version",base.HEX)
 local f_sdReserved2 = ProtoField.uint16("sd.sdReserved2","Reserved",base.HEX)
 local f_sdEventgroup= ProtoField.uint16("sd.sdEventgroup","Eventgroup ID",base.HEX)
-local f_sdOptionLen = ProtoField.uint32("sd.sdOptionLen","Length of Option array",base.HEX)
+local f_sdOptionLen = ProtoField.uint32("sd.sdOptionLen","Length of Option Array",base.HEX)
 
-local f_sdIpv4      = ProtoField.ipv4("sd.sdIpv4","IPv4") 
-local f_sdPort      = ProtoField.uint16("sd.sdPort","Port",base.HEX) 
+local f_sdIpv4      = ProtoField.ipv4("sd.sdIpv4","IPv4 address")
+local f_sdPort      = ProtoField.uint16("sd.sdPort","Port",base.HEX)
 local f_sdLen       = ProtoField.uint16("sd.sdLen","Length",base.HEX)
 local f_sdOptType   = ProtoField.uint8("sd.sdOptType","Type",base.HEX)
-local f_sdL4        = ProtoField.uint8("sd.sdL4","L4-Protocol",base.HEX) 
-pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdReserved2, f_sdEventgroup, f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4}
+local f_sdL4        = ProtoField.uint8("sd.sdL4","L4-Protocol",base.HEX)
+
+-- Extensions for decoding the IPv6 Endpoint Option
+local f_sdIpv6      = ProtoField.ipv6("sd.sdIpv6","IPv6 address") -- The IPv6 address
+local f_sdConfigString = ProtoField.string("sd.confStr","Item",base.ASCII) -- The strings from the configuration options 
+
+-- Extenions end
+pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdReserved2, f_sdEventgroup, 
+              f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4, f_sdIpv6, f_sdConfigString}
 
 
 local function getSd(buf, pkt, root)
 
 	local andmore = " [and more]"
 
-	subtree = root:add("SD Header")
-	
+	subtree = root:add("SD-Header")
+
 	local tvbr = buf:range(0,1)
 
 	flags = subtree:add(f_sdFlags, buf(0,1))
@@ -112,27 +121,30 @@ local function getSd(buf, pkt, root)
 	flags:add("Reboot: " .. reboot)
 	unicast = tvbr:bitfield(1,1)
 	flags:add("Unicast: " .. unicast)
-	
+	expInitDataCtrl = tvbr:bitfield(2,1)
+	flags:add("Explicit Initial Data Control: " .. expInitDataCtrl)
+
 	subtree:add(f_sdReserved, buf(1, 3))
 	local length = subtree:add(f_sdHeaderLen, buf(4,4))
 	length:append_text(" (" .. buf(4,4):uint() .." bytes)")
-	
+
 	local lenEntries = buf(4,4):uint() / 16
 	if (lenEntries < 1) then
-		return 
+		return
 	end
-	
+
 	local dataPos = 8
 	local entrySize = 16
 	local firstEntry = nil
+	local sdTypeEncoded = 0 
 	for i = 0, lenEntries - 1 do
 		if (dataPos + entrySize <= buf:reported_length_remaining()) then
-		
+
 			local name = "NULL"
 			if E_sdTypes[buf(dataPos,1):uint()] ~= nil then
 				name = E_sdTypes[buf(dataPos,1):uint()]
 			end
-			
+
 			if firstEntry == nil then
 				firstEntry = name
 			else
@@ -140,9 +152,9 @@ local function getSd(buf, pkt, root)
 					firstEntry = firstEntry .. andmore
 				end
 			end
-			
+
 			sd = root:add(name)
-			
+
 			sdtype = sd:add(f_sdType, buf(dataPos, 1))
 			sdtype:append_text(" (" .. name ..")")
 			sd:add(f_sdIndex1, buf(dataPos + 1, 1))
@@ -154,80 +166,115 @@ local function getSd(buf, pkt, root)
 			sd:add(f_sdMajor, buf(dataPos + 8, 1))
 			ttl = sd:add(f_sdTtl, buf(dataPos + 9, 3))
 			ttl:append_text(" (" .. buf(dataPos + 9, 3):uint() .." seconds)")
-			sd:add(f_sdReserved2, buf(dataPos + 12, 2))
-			if (buf(dataPos, 1):uint() > 0x5) then
+			
+			-- further decoding depends on type of service entry! 
+			if (sdTypeEncoded > 0x5) then
+				sd:add(f_sdReserved2, buf(dataPos + 12, 2))
 				sd:add(f_sdEventgroup, buf(dataPos + 14, 2))
 			else
-				sd:add(f_sdMinor, buf(dataPos + 14, 4))
+				sd:add(f_sdMinor, buf(dataPos + 12, 4))
 			end
-		
+
 		else
 			break
 		end
 		dataPos = dataPos + entrySize;
 	end -- end for
-	
+
 	if firstEntry ~= nil then
-		pkt.cols.info = "SOME/IP SD: " .. firstEntry
+		pkt.cols.info = "SOME/IP-SD: " .. firstEntry
 	else
-		pkt.cols.info = "SOME/IP SD"
+		pkt.cols.info = "SOME/IP-SD"
 	end
-	
+
 	if (dataPos + 8 > buf:reported_length_remaining()) then
 		return
-	end	
-	
+	end
+
 	sdOptionLen = root:add(f_sdOptionLen, buf(dataPos, 4))
 	sdOptionLen:append_text(" (" .. buf(dataPos, 4):uint() .." bytes)")
-	
+
 	local count = 0
 	local optionLen = buf(dataPos, 4):uint()
 	dataPos = dataPos + 4
 	if (optionLen > 0) then
-		while ((dataPos < buf:reported_length_remaining())) do 
-		
-			-- IP v4 Endpoint Option / IPv4 Multicast Option
+		while ((dataPos < buf:reported_length_remaining())) do
+			-- Do common stuff which is always equal independent from the SD option. Do it per Option. 
+			local name = "NULL"
+			if E_sdOptTypes[buf(dataPos + 2,1):uint()] ~= nil then
+				name = E_sdOptTypes[buf(dataPos + 2,1):uint()]
+				sdopt = root:add("Option " .. count .. ": " .. name) 
+				sdLenOpt = sdopt:add(f_sdLen, buf(dataPos, 2)) 
+				sdLenOpt:append_text(" (" .. buf(dataPos,2):uint() .." bytes)")
+			end 
+
+			-- IPv4 Endpoint Option (0x04) / IPv4 Multicast Option (0x14). 
 			if ((buf(dataPos + 2,1):uint() == 0x04) or (buf(dataPos + 2,1):uint() == 0x14)) then
 
-				local name = "NULL"
-				if E_sdOptTypes[buf(dataPos + 2,1):uint()] ~= nil then
-					name = E_sdOptTypes[buf(dataPos + 2,1):uint()]
-				end
-				
-				sdopt = root:add("[" .. count .. "]" .. name)			
-
-				sdLenOpt = sdopt:add(f_sdLen, buf(dataPos, 2))
-				sdLenOpt:append_text(" (" .. buf(dataPos,2):uint() .." bytes)")
 				sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
 				sdTypeO:append_text(" (" .. name ..")")
 				sdopt:add(f_sdIpv4, buf(dataPos + 4, 4))
 				sdL4 = sdopt:add(f_sdL4, buf(dataPos + 9, 1))
 				if E_sdL4[buf(dataPos + 9,1):uint()] ~= nil then
 					sdL4:append_text(" (" ..  E_sdL4[buf(dataPos + 9,1):uint()] ..")")
-				end			
+				end
 				sdPort = sdopt:add(f_sdPort, buf(dataPos + 10, 2))
 				sdPort:append_text(" (" .. buf(dataPos + 10,2):uint() ..")")
 
 				dataPos = dataPos + 12
-			end -- IP v4 Endpoint Option / IPv4 Multicast Option		
-	
---TODO:
 
-	
-			count = count + 1
-			if (count > 0xFF) then
-				break
-			end
+			-- IPv6 Endpoint Option (0x06) / IPv6 Multicast Option (0x16) 
+		    elseif ((buf(dataPos + 2,1):uint() == 0x06) or (buf(dataPos + 2,1):uint() == 0x16)) then 
+
+				sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
+				sdTypeO:append_text(" (" .. name ..")")
+				-- Length of IPv6 address: 16 bytes
+				sdopt:add(f_sdIpv6, buf(dataPos + 4, 16))
+				sdL4 = sdopt:add(f_sdL4, buf(dataPos + 21, 1))
+				if E_sdL4[buf(dataPos + 21,1):uint()] ~= nil then
+					sdL4:append_text(" (" ..  E_sdL4[buf(dataPos + 21,1):uint()] ..")")
+				end
+				sdPort = sdopt:add(f_sdPort, buf(dataPos + 22, 2))
+				sdPort:append_text(" (" .. buf(dataPos + 22,2):uint() ..")")
+
+				dataPos = dataPos + 24 -- total length of IPv6 option: 24 bytes fix
+			
+			-- Configuration Option (0x01)
+		    elseif (buf(dataPos + 2,1):uint() == 0x01) then
+
+				local configurationOptionLength = 0
+				local currentStringLength = 0  
+				local currentReadPosition 
+
+				configurationOptionLength = buf(dataPos, 2):uint() -- read variable length  
+				sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
+				sdTypeO:append_text(" (" .. name ..")")
+
+				-- Configuration option consists of several strings, each of them prefixed by an one byte length field. 
+				currentReadPosition = dataPos + 4 -- points to length info of first configuration string, do not forget the reserved byte
+				
+				while buf(currentReadPosition, 1):uint() > 0 do -- Length of string > 0
+				   currentStringLength = buf(currentReadPosition, 1):uint() 
+				   currentReadPosition = currentReadPosition + 1 -- Set read poistion of first byte of string after length information 
+				   sdConfigOpt = sdopt:add(f_sdConfigString, buf(currentReadPosition, currentStringLength))
+				
+                   currentReadPosition = currentReadPosition + currentStringLength 
+				end -- of while  
+
+				-- Length of configuration option is really dynamic! 
+				dataPos = dataPos + configurationOptionLength 
+			end -- End of option decoding. You may add additional option decoding here.
+
 		end
 	end
-	
-end
+
+end -- of function getSd(buf, pkt, root)
 
 function pSomeIP.dissector(buf, pkt, root)
-   
+
 	local copyStartByte = 0
 	local sizeSomeIpHeader = 16
-	
+
 	while (copyStartByte < buf:reported_length_remaining()) do
 		if (buf:reported_length_remaining() >= sizeSomeIpHeader) then
 			local lenSection = buf(copyStartByte + 4,4):uint()
@@ -237,7 +284,7 @@ function pSomeIP.dissector(buf, pkt, root)
 			----------
 			-- Header
 			----------
-			
+
 			-- Service ID
 			subtree:add(f_serviceId,buf(copyStartByte + 0,2))
 			-- Method ID
@@ -268,9 +315,9 @@ function pSomeIP.dissector(buf, pkt, root)
 
 
 			if ((buf(copyStartByte + 0,2):uint() == 0xffff) and (buf(copyStartByte + 2,2):uint() == 0x8100)) then
-				pkt.cols.protocol = "SOME/IP SD"
-				subtree:append_text(" SD")
-				
+				pkt.cols.protocol = "SOME/IP-SD"
+				subtree:append_text("-SD")
+
 				---------------------
 				-- Service Discovery
 				---------------------			
@@ -279,7 +326,7 @@ function pSomeIP.dissector(buf, pkt, root)
 				pkt.cols.protocol = "SOME/IP"
 				pkt.cols.info = "SOME/IP"
 			end
-							
+
 			copyStartByte = copyStartByte + lenSection + 8;
 		else
 			break
@@ -297,5 +344,5 @@ function pSomeIP.init()
         udp_table:add(port,pSomeIP)
         tcp_table:add(port,pSomeIP)
     end
-	
+
 end
