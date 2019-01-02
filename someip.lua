@@ -2,6 +2,8 @@
 -- SOME/IP Dissector
 -- Copyright 2018 ATMES GmbH
 
+-- Version 1.2    - Add decoding of a few Service Discovery options
+
 -- Version 1.1		- Add reserved to Subscribe Eventgroup
 
 -- Version 1.0
@@ -108,201 +110,239 @@ pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceI
 
 local function getSd(buf, pkt, root)
 
-	local andmore = " [and more]"
+local andmore = " [and more]"
 
-	subtree = root:add("SD Header")
-	
-	local tvbr = buf:range(0,1)
+subtree = root:add("SD-Header")
 
-	flags = subtree:add(f_sdFlags, buf(0,1))
-	reboot = tvbr:bitfield(0,1)
-	flags:add("Reboot: " .. reboot)
-	unicast = tvbr:bitfield(1,1)
-	flags:add("Unicast: " .. unicast)
-	
-	subtree:add(f_sdReserved, buf(1, 3))
-	local length = subtree:add(f_sdHeaderLen, buf(4,4))
-	length:append_text(" (" .. buf(4,4):uint() .." bytes)")
-	
-	local lenEntries = buf(4,4):uint() / 16
-	if (lenEntries < 1) then
-		return 
-	end
-	
-	local dataPos = 8
-	local entrySize = 16
-	local firstEntry = nil
-	for i = 0, lenEntries - 1 do
-		if (dataPos + entrySize <= buf:reported_length_remaining()) then
-		
-			local name = "NULL"
-			if E_sdTypes[buf(dataPos,1):uint()] ~= nil then
-				name = E_sdTypes[buf(dataPos,1):uint()]
-			end
-			
-			if firstEntry == nil then
-				firstEntry = name
-			else
-				if (string.find(firstEntry, name) ~= nil) and (string.find(firstEntry, andmore) == nil) then
-					firstEntry = firstEntry .. andmore
-				end
-			end
-			
-			sd = root:add(name)
-			
-			sdtype = sd:add(f_sdType, buf(dataPos, 1))
-			sdtype:append_text(" (" .. name ..")")
-			sd:add(f_sdIndex1, buf(dataPos + 1, 1))
-			sd:add(f_sdIndex2, buf(dataPos + 2, 1))
-			sd:add(f_sdNum1, buf(dataPos + 3, 1):bitfield(0,4))
-			sd:add(f_sdNum2, buf(dataPos + 3, 1):bitfield(4,4))
-			sd:add(f_sdServiceId, buf(dataPos + 4, 2))
-			sd:add(f_sdInstId, buf(dataPos + 6, 2))
-			sd:add(f_sdMajor, buf(dataPos + 8, 1))
-			ttl = sd:add(f_sdTtl, buf(dataPos + 9, 3))
-			ttl:append_text(" (" .. buf(dataPos + 9, 3):uint() .." seconds)")
-			sd:add(f_sdReserved2, buf(dataPos + 12, 2))
-			if (buf(dataPos, 1):uint() > 0x5) then
-				sd:add(f_sdEventgroup, buf(dataPos + 14, 2))
-			else
-				sd:add(f_sdMinor, buf(dataPos + 14, 4))
-			end
-		
-		else
-			break
-		end
-		dataPos = dataPos + entrySize;
-	end -- end for
-	
-	if firstEntry ~= nil then
-		pkt.cols.info = "SOME/IP SD: " .. firstEntry
-	else
-		pkt.cols.info = "SOME/IP SD"
-	end
-	
-	if (dataPos + 8 > buf:reported_length_remaining()) then
-		return
-	end	
-	
-	sdOptionLen = root:add(f_sdOptionLen, buf(dataPos, 4))
-	sdOptionLen:append_text(" (" .. buf(dataPos, 4):uint() .." bytes)")
-	
-	local count = 0
-	local optionLen = buf(dataPos, 4):uint()
-	dataPos = dataPos + 4
-	if (optionLen > 0) then
-		while ((dataPos < buf:reported_length_remaining())) do 
-		
-			-- IP v4 Endpoint Option / IPv4 Multicast Option
-			if ((buf(dataPos + 2,1):uint() == 0x04) or (buf(dataPos + 2,1):uint() == 0x14)) then
+local tvbr = buf:range(0,1)
 
-				local name = "NULL"
-				if E_sdOptTypes[buf(dataPos + 2,1):uint()] ~= nil then
-					name = E_sdOptTypes[buf(dataPos + 2,1):uint()]
-				end
-				
-				sdopt = root:add("[" .. count .. "]" .. name)			
+flags = subtree:add(f_sdFlags, buf(0,1))
+reboot = tvbr:bitfield(0,1)
+flags:add("Reboot: " .. reboot)
+unicast = tvbr:bitfield(1,1)
+flags:add("Unicast: " .. unicast)
+expInitDataCtrl = tvbr:bitfield(2,1)
+flags:add("Explicit Initial Data Control: " .. expInitDataCtrl)
 
-				sdLenOpt = sdopt:add(f_sdLen, buf(dataPos, 2))
-				sdLenOpt:append_text(" (" .. buf(dataPos,2):uint() .." bytes)")
-				sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
-				sdTypeO:append_text(" (" .. name ..")")
-				sdopt:add(f_sdIpv4, buf(dataPos + 4, 4))
-				sdL4 = sdopt:add(f_sdL4, buf(dataPos + 9, 1))
-				if E_sdL4[buf(dataPos + 9,1):uint()] ~= nil then
-					sdL4:append_text(" (" ..  E_sdL4[buf(dataPos + 9,1):uint()] ..")")
-				end			
-				sdPort = sdopt:add(f_sdPort, buf(dataPos + 10, 2))
-				sdPort:append_text(" (" .. buf(dataPos + 10,2):uint() ..")")
+subtree:add(f_sdReserved, buf(1, 3))
+local length = subtree:add(f_sdHeaderLen, buf(4,4))
+length:append_text(" (" .. buf(4,4):uint() .." bytes)")
 
-				dataPos = dataPos + 12
-			end -- IP v4 Endpoint Option / IPv4 Multicast Option		
-	
---TODO:
-
-	
-			count = count + 1
-			if (count > 0xFF) then
-				break
-			end
-		end
-	end
-	
+local lenEntries = buf(4,4):uint() / 16
+if (lenEntries < 1) then
+	return
 end
 
-function pSomeIP.dissector(buf, pkt, root)
-   
-	local copyStartByte = 0
-	local sizeSomeIpHeader = 16
-	
-	while (copyStartByte < buf:reported_length_remaining()) do
-		if (buf:reported_length_remaining() >= sizeSomeIpHeader) then
-			local lenSection = buf(copyStartByte + 4,4):uint()
+local dataPos = 8
+local entrySize = 16
+local firstEntry = nil
+local sdTypeEncoded = 0 
+for i = 0, lenEntries - 1 do
+	if (dataPos + entrySize <= buf:reported_length_remaining()) then
 
-			subtree = root:add(pSomeIP,buf(0))
-
-			----------
-			-- Header
-			----------
-			
-			-- Service ID
-			subtree:add(f_serviceId,buf(copyStartByte + 0,2))
-			-- Method ID
-			subtree:add(f_methodId,buf(copyStartByte + 2,2))
-			-- Length
-			local length = subtree:add(f_length,buf(copyStartByte + 4,4))
-			length:append_text(" (" .. buf(copyStartByte + 4,4):uint() .." bytes)")
-			-- Client ID
-			subtree:add(f_clientId,buf(copyStartByte + 8,2))
-			-- Session ID
-			subtree:add(f_sessionId,buf(copyStartByte + 10,2))
-			-- Protocol Version
-			subtree:add(f_proVersion,buf(copyStartByte + 12,1))
-			-- Interface Version
-			subtree:add(f_intVersion,buf(copyStartByte + 13,1))
-
-			-- Message type
-			local msgType = subtree:add(f_msgType,buf(copyStartByte + 14,1))
-			if E_msgTypes[buf(copyStartByte + 14,1):uint()] ~= nil then
-				msgType:append_text(" (" .. E_msgTypes[buf(copyStartByte + 14,1):uint()] ..")")
-			end
-
-			-- Return Code
-			local retCode = subtree:add(f_returnCode,buf(copyStartByte + 15,1))
-			if E_retCodes[buf(copyStartByte + 15,1):uint()] ~= nil then
-				retCode:append_text(" (" .. E_retCodes[buf(copyStartByte + 15,1):uint()] ..")")
-			end
-
-
-			if ((buf(copyStartByte + 0,2):uint() == 0xffff) and (buf(copyStartByte + 2,2):uint() == 0x8100)) then
-				pkt.cols.protocol = "SOME/IP SD"
-				subtree:append_text(" SD")
-				
-				---------------------
-				-- Service Discovery
-				---------------------			
-				getSd(buf(copyStartByte + 16):tvb(), pkt, subtree)			
-			else
-				pkt.cols.protocol = "SOME/IP"
-				pkt.cols.info = "SOME/IP"
-			end
-							
-			copyStartByte = copyStartByte + lenSection + 8;
-		else
-			break
+		local name = "NULL"
+		if E_sdTypes[buf(dataPos,1):uint()] ~= nil then
+			name = E_sdTypes[buf(dataPos,1):uint()]
 		end
-	end -- end while
+
+		if firstEntry == nil then
+			firstEntry = name
+		else
+			if (string.find(firstEntry, name) ~= nil) and (string.find(firstEntry, andmore) == nil) then
+				firstEntry = firstEntry .. andmore
+			end
+		end
+
+		sd = root:add(name)
+
+		sdtype = sd:add(f_sdType, buf(dataPos, 1))
+		sdtype:append_text(" (" .. name ..")")
+		sd:add(f_sdIndex1, buf(dataPos + 1, 1))
+		sd:add(f_sdIndex2, buf(dataPos + 2, 1))
+		sd:add(f_sdNum1, buf(dataPos + 3, 1):bitfield(0,4))
+		sd:add(f_sdNum2, buf(dataPos + 3, 1):bitfield(4,4))
+		sd:add(f_sdServiceId, buf(dataPos + 4, 2))
+		sd:add(f_sdInstId, buf(dataPos + 6, 2))
+		sd:add(f_sdMajor, buf(dataPos + 8, 1))
+		ttl = sd:add(f_sdTtl, buf(dataPos + 9, 3))
+		ttl:append_text(" (" .. buf(dataPos + 9, 3):uint() .." seconds)")
+		
+		-- further decoding depends on type of service entry! 
+		if (sdTypeEncoded > 0x5) then
+			sd:add(f_sdReserved2, buf(dataPos + 12, 2))
+			sd:add(f_sdEventgroup, buf(dataPos + 14, 2))
+		else
+			sd:add(f_sdMinor, buf(dataPos + 12, 4))
+		end
+
+	else
+		break
+	end
+	dataPos = dataPos + entrySize;
+end -- end for
+
+if firstEntry ~= nil then
+	pkt.cols.info = "SOME/IP-SD: " .. firstEntry
+else
+	pkt.cols.info = "SOME/IP-SD"
+end
+
+if (dataPos + 8 > buf:reported_length_remaining()) then
+	return
+end
+
+sdOptionLen = root:add(f_sdOptionLen, buf(dataPos, 4))
+sdOptionLen:append_text(" (" .. buf(dataPos, 4):uint() .." bytes)")
+
+local count = 0
+local optionLen = buf(dataPos, 4):uint()
+dataPos = dataPos + 4
+if (optionLen > 0) then
+	while ((dataPos < buf:reported_length_remaining())) do
+		-- Do common stuff which is always equal independent from the SD option. Do it per Option. 
+		local name = "NULL"
+		if E_sdOptTypes[buf(dataPos + 2,1):uint()] ~= nil then
+			name = E_sdOptTypes[buf(dataPos + 2,1):uint()]
+			sdopt = root:add("Option " .. count .. ": " .. name) 
+			sdLenOpt = sdopt:add(f_sdLen, buf(dataPos, 2)) 
+			sdLenOpt:append_text(" (" .. buf(dataPos,2):uint() .." bytes)")
+		end 
+
+		-- IPv4 Endpoint Option (0x04) / IPv4 Multicast Option (0x14). 
+		if ((buf(dataPos + 2,1):uint() == 0x04) or (buf(dataPos + 2,1):uint() == 0x14)) then
+
+			sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
+			sdTypeO:append_text(" (" .. name ..")")
+			sdopt:add(f_sdIpv4, buf(dataPos + 4, 4))
+			sdL4 = sdopt:add(f_sdL4, buf(dataPos + 9, 1))
+			if E_sdL4[buf(dataPos + 9,1):uint()] ~= nil then
+				sdL4:append_text(" (" ..  E_sdL4[buf(dataPos + 9,1):uint()] ..")")
+			end
+			sdPort = sdopt:add(f_sdPort, buf(dataPos + 10, 2))
+			sdPort:append_text(" (" .. buf(dataPos + 10,2):uint() ..")")
+
+			dataPos = dataPos + 12
+
+		-- IPv6 Endpoint Option (0x06) / IPv6 Multicast Option (0x16) 
+			elseif ((buf(dataPos + 2,1):uint() == 0x06) or (buf(dataPos + 2,1):uint() == 0x16)) then 
+
+			sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
+			sdTypeO:append_text(" (" .. name ..")")
+			-- Length of IPv6 address: 16 bytes
+			sdopt:add(f_sdIpv6, buf(dataPos + 4, 16))
+			sdL4 = sdopt:add(f_sdL4, buf(dataPos + 21, 1))
+			if E_sdL4[buf(dataPos + 21,1):uint()] ~= nil then
+				sdL4:append_text(" (" ..  E_sdL4[buf(dataPos + 21,1):uint()] ..")")
+			end
+			sdPort = sdopt:add(f_sdPort, buf(dataPos + 22, 2))
+			sdPort:append_text(" (" .. buf(dataPos + 22,2):uint() ..")")
+
+			dataPos = dataPos + 24 -- total length of IPv6 option: 24 bytes fix
+		
+		-- Configuration Option (0x01)
+			elseif (buf(dataPos + 2,1):uint() == 0x01) then
+
+			local configurationOptionLength = 0
+			local currentStringLength = 0  
+			local currentReadPosition 
+
+			configurationOptionLength = buf(dataPos, 2):uint() -- read variable length  
+			sdTypeO = sdopt:add(f_sdOptType, buf(dataPos + 2, 1))
+			sdTypeO:append_text(" (" .. name ..")")
+
+			-- Configuration option consists of several strings, each of them prefixed by an one byte length field. 
+			currentReadPosition = dataPos + 4 -- points to length info of first configuration string, do not forget the reserved byte
+			
+			while buf(currentReadPosition, 1):uint() > 0 do -- Length of string > 0
+				 currentStringLength = buf(currentReadPosition, 1):uint() 
+				 currentReadPosition = currentReadPosition + 1 -- Set read poistion of first byte of string after length information 
+				 sdConfigOpt = sdopt:add(f_sdConfigString, buf(currentReadPosition, currentStringLength))
+			
+								 currentReadPosition = currentReadPosition + currentStringLength 
+			end -- of while  
+
+			-- Length of configuration option is really dynamic! 
+			dataPos = dataPos + configurationOptionLength 
+		end -- End of option decoding. You may add additional option decoding here.
+
+	end
+end
+
+end -- of function getSd(buf, pkt, root)
+
+function pSomeIP.dissector(buf, pkt, root)
+
+local copyStartByte = 0
+local sizeSomeIpHeader = 16
+
+while (copyStartByte < buf:reported_length_remaining()) do
+	if (buf:reported_length_remaining() >= sizeSomeIpHeader) then
+		local lenSection = buf(copyStartByte + 4,4):uint()
+
+		subtree = root:add(pSomeIP,buf(0))
+
+		----------
+		-- Header
+		----------
+
+		-- Service ID
+		subtree:add(f_serviceId,buf(copyStartByte + 0,2))
+		-- Method ID
+		subtree:add(f_methodId,buf(copyStartByte + 2,2))
+		-- Length
+		local length = subtree:add(f_length,buf(copyStartByte + 4,4))
+		length:append_text(" (" .. buf(copyStartByte + 4,4):uint() .." bytes)")
+		-- Client ID
+		subtree:add(f_clientId,buf(copyStartByte + 8,2))
+		-- Session ID
+		subtree:add(f_sessionId,buf(copyStartByte + 10,2))
+		-- Protocol Version
+		subtree:add(f_proVersion,buf(copyStartByte + 12,1))
+		-- Interface Version
+		subtree:add(f_intVersion,buf(copyStartByte + 13,1))
+
+		-- Message type
+		local msgType = subtree:add(f_msgType,buf(copyStartByte + 14,1))
+		if E_msgTypes[buf(copyStartByte + 14,1):uint()] ~= nil then
+			msgType:append_text(" (" .. E_msgTypes[buf(copyStartByte + 14,1):uint()] ..")")
+		end
+
+		-- Return Code
+		local retCode = subtree:add(f_returnCode,buf(copyStartByte + 15,1))
+		if E_retCodes[buf(copyStartByte + 15,1):uint()] ~= nil then
+			retCode:append_text(" (" .. E_retCodes[buf(copyStartByte + 15,1):uint()] ..")")
+		end
+
+
+		if ((buf(copyStartByte + 0,2):uint() == 0xffff) and (buf(copyStartByte + 2,2):uint() == 0x8100)) then
+			pkt.cols.protocol = "SOME/IP-SD"
+			subtree:append_text("-SD")
+
+			---------------------
+			-- Service Discovery
+			---------------------			
+			getSd(buf(copyStartByte + 16):tvb(), pkt, subtree)			
+		else
+			pkt.cols.protocol = "SOME/IP"
+			pkt.cols.info = "SOME/IP"
+		end
+
+		copyStartByte = copyStartByte + lenSection + 8;
+	else
+		break
+	end
+end -- end while
 
 end
 
 function pSomeIP.init()
 
-    local udp_table = DissectorTable.get("udp.port")
-    local tcp_table = DissectorTable.get("tcp.port")
+	local udp_table = DissectorTable.get("udp.port")
+	local tcp_table = DissectorTable.get("tcp.port")
 
-    for i,port in ipairs{30490,30491,30492,30500,30501,30502,30503,30504,30505,50025,50015} do
-        udp_table:add(port,pSomeIP)
-        tcp_table:add(port,pSomeIP)
-    end
-	
+	for i,port in ipairs{30490,30491,30492,30500,30501,30502,30503,30504,30505,50025,50015} do
+			udp_table:add(port,pSomeIP)
+			tcp_table:add(port,pSomeIP)
+	end
+
 end
