@@ -95,8 +95,15 @@ local f_sdIpv4      = ProtoField.ipv4("sd.sdIpv4","IPv4 address")
 local f_sdPort      = ProtoField.uint16("sd.sdPort","Port",base.HEX)
 local f_sdLen       = ProtoField.uint16("sd.sdLen","Length",base.HEX)
 local f_sdOptType   = ProtoField.uint8("sd.sdOptType","Type",base.HEX)
-local f_sdL4        = ProtoField.uint8("sd.sdL4","L4-Protocol",base.HEX) 
-pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdReserved2, f_sdEventgroup, f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4}
+local f_sdL4        = ProtoField.uint8("sd.sdL4","L4-Protocol",base.HEX)
+
+-- Extensions for decoding the IPv6 Endpoint Option
+local f_sdIpv6      = ProtoField.ipv6("sd.sdIpv6","IPv6 address") -- The IPv6 address
+local f_sdConfigString = ProtoField.string("sd.confStr","Item",base.ASCII) -- The strings from the configuration options 
+
+-- Extenions end
+pSd.fields = {f_sdType, f_sdIndex1, f_sdIndex2, f_sdNum1, f_sdNum2, f_sdServiceId, f_sdInstId, f_sdMajor, f_sdTtl, f_sdMinor, f_sdReserved2, f_sdEventgroup, 
+						f_sdOptionLen, f_sdIpv4, f_sdPort, f_sdLen, f_sdOptType, f_sdL4, f_sdIpv6, f_sdConfigString}
 
 
 local function getSd(buf, pkt, root)
