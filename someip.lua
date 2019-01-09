@@ -4,7 +4,7 @@
 
 -- Version 1.2    - Add decoding of a few Service Discovery options
 
--- Version 1.1		- Add reserved to Subscribe Eventgroup
+-- Version 1.1    - Add reserved to Subscribe Eventgroup
 
 -- Version 1.0
 -----------------------------------
@@ -48,7 +48,7 @@ local E_sdOptTypes = {
 	[1]     = "CONFIGURATION",
 	[2]     = "LOAD BALANCING",
 	[4]     = "IPv4 ENDPOINT",
-[6]     = "IPv6 ENDPOINT",
+	[6]     = "IPv6 ENDPOINT",
 	[20]    = "IPv4 MULTICAST",
 	[22]    = "IPV6 MULTICAST",
 	[36]    = "IPv4 SD_ENDPOINT",
